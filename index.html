@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TabiNote Pro | 旅程小助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body { font-family: 'Noto Sans JP', sans-serif; background-color: #F7F5F0; color: #4A4A4A; }
+        .muji-card { background: #FFFFFF; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .muji-red { color: #B22D35; }
+        .bg-muji-red { background-color: #B22D35; }
+        .nav-active { color: #B22D35; border-top: 3px solid #B22D35; }
+        .tab-content { display: none; padding-bottom: 100px; }
+        .tab-content.active { display: block; }
+        .timeline-line::before { content: ''; position: absolute; left: 15px; top: 0; bottom: 0; width: 1px; background: #E0DCD3; }
+        input, textarea, select { border: 1px solid #E0DCD3; border-radius: 4px; padding: 10px; font-size: 14px; }
+        pre { white-space: pre-wrap; word-wrap: break-word; font-family: inherit; }
+    </style>
+</head>
+<body class="antialiased">
+
+    <header class="sticky top-0 z-50 bg-white border-b border-gray-200 px-4 py-3 flex justify-between items-center">
+        <h1 class="text-xl font-bold tracking-widest muji-red" id="current-trip-title">TABINOTE</h1>
+        <button onclick="toggleSettings()" class="text-gray-400 text-xl p-2"><i class="fas fa-cog"></i></button>
+    </header>
+
+    <main class="max-w-md mx-auto p-4">
+        
+        <section id="settings-panel" class="hidden fixed inset-0 bg-white z-[60] overflow-y-auto p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold italic">Trip Settings</h2>
+                <button onclick="toggleSettings()" class="text-3xl text-gray-300">&times;</button>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-1">旅程名稱 (e.g. 東京 2026)</label>
+                    <input type="text" id="set-trip-name" class="w-full">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-1">航班資訊</label>
+                    <textarea id="set-flights" class="w-full h-20 text-sm" placeholder="去程: JAL 802 08:00..."></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-1">住宿資訊 (名稱與地址)</label>
+                    <textarea id="set-hotel" class="w-full h-20 text-sm" placeholder="Hotel Name..."></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-1">每日行程 (Day 1, Day 2 為標題樣式)</label>
+                    <textarea id="set-schedule" class="w-full h-64 text-sm font-mono" placeholder="Day 1&#10;14:00 Check-in&#10;Day 2&#10;09:00 Tokyo Tower"></textarea>
+                </div>
+                
+                <button onclick="saveAllSettings()" class="w-full bg-muji-red text-white py-4 rounded-lg font-bold shadow-lg">儲存更新</button>
+                
+                <div class="pt-8 border-t border-gray-100 mt-8">
+                    <button onclick="deleteCurrentTrip()" class="w-full bg-white text-red-600 border border-red-600 py-3 rounded-lg text-sm font-bold">
+                        <i class="fas fa-trash-alt mr-2"></i>刪除此旅程檔
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <section id="plan" class="tab-content active">
+            <div id="flight-display" class="muji-card p-4 mb-6 border-l-4 border-red-700"></div>
+            <div id="schedule-display" class="relative timeline-line pl-8 space-y-8 text-sm"></div>
+        </section>
+
+        <section id="wallet" class="tab-content">
+            <h2 class="text-2xl font-medium mb-6">旅遊錢包</h2>
+            
+            <div class="muji-card p-4 mb-6">
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-sm font-bold text-gray-400">1 JPY = </span>
+                    <input type="number" id="fx-rate" value="0.215" step="0.001" class="w-20 text-center font-bold">
+                    <span class="text-sm font-bold text-gray-400">TWD</span>
+                </div>
+                <div class="flex gap-2">
+                    <input type="text" id="calc-input" placeholder="500 + 1200 * 2" class="flex-1 bg-gray-50 border-none p-3 rounded">
+                    <button onclick="calculateFx()" class="bg-gray-800 text-white px-4 rounded text-sm">換算</button>
+                </div>
+                <div id="calc-result" class="mt-3 text-right text-xl font-bold muji-red">≈ NT$ 0</div>
+            </div>
+
+            <div class="muji-card p-4 mb-6">
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <input type="text" id="expense-item" placeholder="品項 (e.g. 拉麵)" class="text-sm">
+                    <input type="number" id="expense-amount" placeholder="日幣金額" class="text-sm">
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="flex-1 bg-gray-100 p-2 rounded text-center cursor-pointer text-xs">
+                        <i class="fas fa-camera mr-1"></i> 上傳收據
+                        <input type="file" id="expense-photo" accept="image/*" class="hidden" onchange="handleImageUpload(this)">
+                    </label>
+                    <button onclick="addExpense()" class="flex-1 bg-muji-red text-white p-2 rounded text-sm font-bold">記錄一筆</button>
+                </div>
+                <div id="img-preview" class="mt-2 hidden">
+                    <img src="" id="temp-img" class="w-16 h-16 object-cover rounded border">
+                </div>
+            </div>
+
+            <div id="expense-list" class="space-y-3"></div>
+        </section>
+
+        <section id="lists" class="tab-content">
+            <h2 class="text-2xl font-medium mb-6">備忘與清單</h2>
+            <div class="muji-card p-4 mb-6">
+                <h3 class="font-bold mb-4 border-b pb-2 text-xs text-gray-400">CHECKLIST</h3>
+                <div id="checklist-container" class="space-y-3"></div>
+            </div>
+            <div class="muji-card p-4">
+                <textarea id="memo-input" class="w-full h-32 p-3 bg-gray-50 border-none mb-2 text-sm" placeholder="自由輸入備忘錄，網址會自動轉換..."></textarea>
+                <button onclick="saveMemo()" class="w-full bg-gray-800 text-white p-2 rounded text-sm">儲存備忘</button>
+                <div id="memo-display" class="mt-4 text-xs space-y-2"></div>
+            </div>
+        </section>
+
+        <section id="info" class="tab-content">
+            <h2 class="text-2xl font-medium mb-6">旅程管理</h2>
+            <div class="muji-card p-4 mb-4">
+                <label class="block text-[10px] font-bold text-gray-400 mb-2 uppercase tracking-widest">目前旅程存檔</label>
+                <select id="trip-selector" onchange="switchTrip(this.value)" class="w-full p-2 bg-gray-100 border-none text-sm mb-4 font-bold"></select>
+                <button onclick="createNewTrip()" class="w-full border-2 border-dashed border-gray-300 py-3 rounded-lg text-sm text-gray-500 font-medium">+ 建立新的行程檔</button>
+            </div>
+            
+            <div id="hotel-display" class="muji-card p-4 mb-4 text-sm"></div>
+            
+            <div class="muji-card p-4 text-red-800 font-bold flex justify-between">
+                <span>緊急求助 (日本)</span>
+                <span>110 / 119</span>
+            </div>
+        </section>
+
+    </main>
+
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around items-center h-16 z-50">
+        <button onclick="showTab('plan')" id="btn-plan" class="nav-btn w-full nav-active"><i class="fas fa-map"></i><p class="text-[10px] font-bold">PLAN</p></button>
+        <button onclick="showTab('wallet')" id="btn-wallet" class="nav-btn w-full text-gray-400"><i class="fas fa-wallet"></i><p class="text-[10px] font-bold">WALLET</p></button>
+        <button onclick="showTab('lists')" id="btn-lists" class="nav-btn w-full text-gray-400"><i class="fas fa-check-square"></i><p class="text-[10px] font-bold">LISTS</p></button>
+        <button onclick="showTab('info')" id="btn-info" class="nav-btn w-full text-gray-400"><i class="fas fa-exchange-alt"></i><p class="text-[10px] font-bold">TRIPS</p></button>
+    </nav>
+
+    <script>
+        let currentTripId = localStorage.getItem('activeTripId') || 'default';
+        let base64Image = "";
+
+        // --- Core UI Logic ---
+        function showTab(id) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.replace('nav-active', 'text-gray-400'));
+            document.getElementById('btn-'+id).classList.replace('text-gray-400', 'nav-active');
+            window.scrollTo(0,0);
+        }
+
+        function toggleSettings() {
+            document.getElementById('settings-panel').classList.toggle('hidden');
+        }
+
+        // --- Trip Management ---
+        function saveAllSettings() {
+            const data = {
+                name: document.getElementById('set-trip-name').value || "我的旅程",
+                flights: document.getElementById('set-flights').value,
+                hotel: document.getElementById('set-hotel').value,
+                schedule: document.getElementById('set-schedule').value
+            };
+            localStorage.setItem('trip_' + currentTripId, JSON.stringify(data));
+            location.reload();
+        }
+
+        function createNewTrip() {
+            const name = prompt("請輸入新旅程名稱 (例如: 大阪 2027)");
+            if (!name) return;
+            const newId = Date.now();
+            localStorage.setItem('trip_' + newId, JSON.stringify({name: name, flights: '', hotel: '', schedule: 'Day 1\n請在設定中輸入行程'}));
+            localStorage.setItem('activeTripId', newId);
+            location.reload();
+        }
+
+        function deleteCurrentTrip() {
+            if (confirm("⚠️ 確定要刪除整個「" + document.getElementById('set-trip-name').value + "」旅程嗎？此動作將連同該旅程的記帳與清單一併刪除且無法復原！")) {
+                const keysToDelete = Object.keys(localStorage).filter(k => k.includes(currentTripId));
+                keysToDelete.forEach(k => localStorage.removeItem(k));
+                
+                const remaining = Object.keys(localStorage).filter(k => k.startsWith('trip_'));
+                if (remaining.length > 0) {
+                    localStorage.setItem('activeTripId', remaining[0].replace('trip_', ''));
+                } else {
+                    localStorage.removeItem('activeTripId');
+                }
+                location.reload();
+            }
+        }
+
+        function switchTrip(id) {
+            localStorage.setItem('activeTripId', id);
+            location.reload();
+        }
+
+        // --- Wallet & Canvas Image Compression ---
+        function handleImageUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 200;
+                    const scale = MAX_WIDTH / img.width;
+                    canvas.width = MAX_WIDTH;
+                    canvas.height = img.height * scale;
+                    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                    base64Image = canvas.toDataURL('image/jpeg', 0.6); // 壓縮品質 0.6
+                    document.getElementById('img-preview').classList.remove('hidden');
+                    document.getElementById('temp-img').src = base64Image;
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function addExpense() {
+            const item = document.getElementById('expense-item').value;
+            const amount = document.getElementById('expense-amount').value;
+            if(!item || !amount) return;
+            const rate = parseFloat(document.getElementById('fx-rate').value);
+            const expense = { id: Date.now(), item, jpy: parseFloat(amount), twd: Math.round(amount * rate), img: base64Image };
+            
+            const list = JSON.parse(localStorage.getItem('expenses_' + currentTripId) || '[]');
+            list.unshift(expense);
+            localStorage.setItem('expenses_' + currentTripId, JSON.stringify(list));
+            location.reload();
+        }
+
+        function deleteExpense(id) {
+            let list = JSON.parse(localStorage.getItem('expenses_' + currentTripId));
+            list = list.filter(e => e.id !== id);
+            localStorage.setItem('expenses_' + currentTripId, JSON.stringify(list));
+            renderExpenses();
+        }
+
+        function calculateFx() {
+            const input = document.getElementById('calc-input').value;
+            const rate = parseFloat(document.getElementById('fx-rate').value);
+            try {
+                const res = eval(input.replace(/[^-()\d/*+.]/g, ''));
+                document.getElementById('calc-result').innerText = `≈ NT$ ${Math.round(res * rate).toLocaleString()}`;
+            } catch(e) { alert("算式有誤"); }
+        }
+
+        // --- Rendering Functions ---
+        function updateUI() {
+            const raw = localStorage.getItem('trip_' + currentTripId);
+            if (!raw) return;
+            const data = JSON.parse(raw);
+            
+            document.getElementById('current-trip-title').innerText = data.name.toUpperCase();
+            document.getElementById('flight-display').innerHTML = `<h3 class="font-bold muji-red mb-2 text-xs uppercase tracking-widest">Flights</h3><pre class="text-sm font-bold">${data.flights || '尚未填寫'}</pre>`;
+            document.getElementById('hotel-display').innerHTML = `<h3 class="font-bold mb-2 text-xs text-gray-400 uppercase">Accommodations</h3><pre class="text-xs text-gray-500">${data.hotel || '尚未填寫'}</pre>`;
+            
+            // Schedule
+            const lines = data.schedule.split('\n');
+            let sHtml = '';
+            lines.forEach(l => {
+                if(l.toLowerCase().includes('day')) {
+                    sHtml += `<div class="font-bold text-lg mt-6 mb-2 muji-red border-b border-red-50">{{ ${l} }}</div>`;
+                } else if (l.trim() !== "") {
+                    sHtml += `<div class="mb-2 flex items-start"><span class="w-2 h-2 bg-red-200 rounded-full mr-3 mt-1.5 shrink-0"></span>${l}</div>`;
+                }
+            });
+            document.getElementById('schedule-display').innerHTML = sHtml;
+
+            // Settings Inputs
+            document.getElementById('set-trip-name').value = data.name;
+            document.getElementById('set-flights').value = data.flights;
+            document.getElementById('set-hotel').value = data.hotel;
+            document.getElementById('set-schedule').value = data.schedule;
+
+            renderExpenses();
+            renderChecklist();
+            renderMemo();
+            
+            // Trip Selector
+            const selector = document.getElementById('trip-selector');
+            Object.keys(localStorage).filter(k => k.startsWith('trip_')).forEach(k => {
+                const trip = JSON.parse(localStorage.getItem(k));
+                const opt = document.createElement('option');
+                opt.value = k.replace('trip_', '');
+                opt.innerText = trip.name;
+                opt.selected = opt.value === currentTripId;
+                selector.appendChild(opt);
+            });
+        }
+
+        function renderExpenses() {
+            const list = JSON.parse(localStorage.getItem('expenses_' + currentTripId) || '[]');
+            document.getElementById('expense-list').innerHTML = list.map(e => `
+                <div class="muji-card p-3 flex items-center gap-3">
+                    ${e.img ? `<img src="${e.img}" class="w-12 h-12 object-cover rounded shadow-sm">` : `<div class="w-12 h-12 bg-gray-50 flex items-center justify-center text-[8px] text-gray-300">NO PIC</div>`}
+                    <div class="flex-1">
+                        <div class="font-bold text-sm">${e.item}</div>
+                        <div class="text-[10px] text-gray-400">¥${e.jpy.toLocaleString()} → NT$${e.twd.toLocaleString()}</div>
+                    </div>
+                    <button onclick="deleteExpense(${e.id})" class="text-gray-200"><i class="fas fa-trash-alt"></i></button>
+                </div>
+            `).join('');
+        }
+
+        function renderChecklist() {
+            const saved = JSON.parse(localStorage.getItem('list_' + currentTripId) || '[]');
+            const items = saved.length ? saved : ["護照","網卡","日幣現金","行動電源"].map(t => ({text:t, done:false}));
+            document.getElementById('checklist-container').innerHTML = items.map((item, i) => `
+                <div class="flex items-center gap-3 text-sm">
+                    <input type="checkbox" ${item.done?'checked':''} onchange="toggleCheck(${i})" class="w-5 h-5 accent-red-700">
+                    <span class="${item.done?'line-through text-gray-300':''}">${item.text}</span>
+                </div>
+            `).join('');
+            localStorage.setItem('list_' + currentTripId, JSON.stringify(items));
+        }
+
+        function toggleCheck(i) {
+            const items = JSON.parse(localStorage.getItem('list_' + currentTripId));
+            items[i].done = !items[i].done;
+            localStorage.setItem('list_' + currentTripId, JSON.stringify(items));
+            renderChecklist();
+        }
+
+        function saveMemo() {
+            localStorage.setItem('memo_' + currentTripId, document.getElementById('memo-input').value);
+            renderMemo();
+        }
+
+        function renderMemo() {
+            const val = localStorage.getItem('memo_' + currentTripId) || "";
+            document.getElementById('memo-input').value = val;
+            const urlRegex = /(https?:\/\/[^\s]+)/g;
+            document.getElementById('memo-display').innerHTML = val.replace(urlRegex, u => `<a href="${u}" target="_blank" class="text-blue-500 underline break-all">${u}</a>`).replace(/\n/g, '<br>');
+        }
+
+        window.onload = () => {
+            if (!localStorage.getItem('trip_' + currentTripId)) {
+                localStorage.setItem('trip_' + currentTripId, JSON.stringify({name: "預設旅程", flights: "", hotel: "", schedule: "Day 1\n點擊右上角齒輪編輯行程"}));
+            }
+            updateUI();
+        };
+    </script>
+</body>
+</html>
